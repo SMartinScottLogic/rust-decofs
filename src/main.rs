@@ -5,8 +5,15 @@ extern crate env_logger;
 use std::env;
 use std::path::PathBuf;
 use std::ffi::{OsStr,OsString};
+use libc::{c_int, EROFS};
+use fuse::{FileType, FileAttr, Filesystem, Request, Reply, ReplyData, ReplyEntry, ReplyAttr, ReplyDirectory};
 
-use fuse::{FileType, FileAttr, Filesystem, Request, ReplyData, ReplyEntry, ReplyAttr, ReplyDirectory};
+macro_rules! fuse_error {
+    ($reply:expr, $code: ident) => {
+        $reply.error($code)
+    }
+}
+
 struct DecoFS {
     sourceroot: PathBuf
 }
@@ -18,6 +25,18 @@ impl DecoFS {
 }
 
 impl Filesystem for DecoFS {
+
+    fn mknod(
+    &mut self,
+    _req: &Request,
+    _parent: u64,
+    _name: &OsStr,
+    _mode: u32,
+    _rdev: u32,
+    reply: ReplyEntry
+    ) {
+        fuse_error!(reply, EROFS);
+    }
 }
 
 fn main() {
