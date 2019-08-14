@@ -2,6 +2,10 @@
 extern crate log;
 extern crate env_logger;
 
+use std::env;
+use std::path::PathBuf;
+use std::ffi::{OsStr,OsString};
+
 use fuse::{FileType, FileAttr, Filesystem, Request, ReplyData, ReplyEntry, ReplyAttr, ReplyDirectory};
 struct DecoFS {
     sourceroot: PathBuf
