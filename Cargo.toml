@@ -1,0 +1,8 @@
+[package]
+name = "rust-decofs"
+version = "0.1.0"
+authors = ["Simon Martin <smartin@scottlogic.com>"]
+edition = "2018"
+
+[dependencies]
+fuse = "0.3.1"                 # Rust library for filesystems in userspace (FUSE)
