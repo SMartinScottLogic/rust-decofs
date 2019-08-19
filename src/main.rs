@@ -22,6 +22,22 @@ macro_rules! fuse_error {
     }
 }
 
+trait FuseError {
+    fn fuse_error(self, code: c_int);
+}
+
+impl FuseError for ReplyEntry {
+    fn fuse_error(self, code: c_int) {
+        self.error(code);
+    }
+}
+
+impl FuseError for ReplyEmpty {
+    fn fuse_error(self, code: c_int) {
+        self.error(code);
+    }
+}
+
 struct DecoFS {
     sourceroot: PathBuf,
     inodes: HashMap<u64, String>
@@ -58,6 +74,20 @@ impl DecoFS {
       info!("file_attr {:?}", file_attr);
       Ok(file_attr)
     }
+
+    fn get_source_path(&self, parent: u64, name: &OsStr) -> Result<PathBuf, c_int> {
+        match parent {
+            1 => Ok(self.sourceroot.join(name)),
+            _ => Err(ENOENT)
+        }
+    }
+
+    fn apply_to_path<T: FuseError, F>(&self, parent: u64, name: &OsStr, reply: T, f: F) where F:Fn(PathBuf, T) {
+        match self.get_source_path(parent, name) {
+            Ok(path) => f(path, reply),
+            Err(e) => reply.fuse_error(e)
+        }
+    }
 }
 
 impl Filesystem for DecoFS {
@@ -65,16 +95,13 @@ impl Filesystem for DecoFS {
     fn destroy(&mut self, _req: &Request) { }
     fn lookup(&mut self, _req: &Request, parent: u64, name: &OsStr, reply: ReplyEntry) {
         info!("readdir {} {:?}", parent, name);
-        match parent {
-            1 =>match &self.stat(&self.sourceroot.join(name)) {
+        self.apply_to_path(parent, name, reply, |path, reply| match &self.stat(&path) {
                 Ok(stat) => {
                     //self.inodes.insert(stat.ino, name.to_os_string());
-                    reply.entry(&TTL, stat, 0)
+                    reply.entry(&TTL, stat, 0);
                     },
-                _ => reply.error(ENOENT)
-            },
-            _ => reply.error(ENOENT)
-        };
+                Err(e) => reply.fuse_error(e.raw_os_error().unwrap())
+            })
     }
     fn forget(&mut self, _req: &Request, _ino: u64, _nlookup: u64) { }
     fn getattr(&mut self, _req: &Request, ino: u64, reply: ReplyAttr) {
@@ -84,18 +111,40 @@ impl Filesystem for DecoFS {
             _ => reply.error(ENOENT)
         }
     }
-    fn readlink(&mut self, _req: &Request, _ino: u64, reply: ReplyData) { ... }
-    fn unlink(&mut self, _req: &Request, _parent: u64, _name: &OsStr, reply: ReplyEmpty) { ... }
-    fn rmdir(&mut self, _req: &Request, _parent: u64, _name: &OsStr, reply: ReplyEmpty) { ... }
-    fn open(&mut self, _req: &Request, _ino: u64, _flags: u32, reply: ReplyOpen) { ... }
-    fn read(&mut self, _req: &Request, _ino: u64, _fh: u64, _offset: i64, _size: u32, reply: ReplyData) { ... }
-    fn flush(&mut self, _req: &Request, _ino: u64, _fh: u64, _lock_owner: u64, reply: ReplyEmpty) { ... }
-    fn release(&mut self, _req: &Request, _ino: u64, _fh: u64, _flags: u32, _lock_owner: u64, _flush: bool, reply: ReplyEmpty) { ... }
-    fn fsync(&mut self, _req: &Request, _ino: u64, _fh: u64, _datasync: bool, reply: ReplyEmpty) { ... }
+    fn readlink(&mut self, _req: &Request, _ino: u64, reply: ReplyData) {
+        // TODO implement
+    }
+    fn unlink(&mut self, _req: &Request, parent: u64, name: &OsStr, reply: ReplyEmpty) {
+        self.apply_to_path(parent, name, reply, |path, reply| match fs::remove_file(&path) {
+                 Ok(_) => reply.ok(),
+                 Err(e) => reply.fuse_error(e.raw_os_error().unwrap())
+            })
+    }
+    fn rmdir(&mut self, _req: &Request, parent: u64, name: &OsStr, reply: ReplyEmpty) {
+        self.apply_to_path(parent, name, reply, |path, reply| match fs::remove_dir(&path) {
+                 Ok(_) => reply.ok(),
+                 Err(e) => reply.fuse_error(e.raw_os_error().unwrap())
+            })
+    }
+    fn open(&mut self, _req: &Request, _ino: u64, _flags: u32, reply: ReplyOpen) {
+        // TODO implement
+    }
+    fn read(&mut self, _req: &Request, _ino: u64, _fh: u64, _offset: i64, _size: u32, reply: ReplyData) {
+        // TODO implement
+    }
+    fn flush(&mut self, _req: &Request, _ino: u64, _fh: u64, _lock_owner: u64, reply: ReplyEmpty) {
+        // TODO implement
+    }
+    fn release(&mut self, _req: &Request, _ino: u64, _fh: u64, _flags: u32, _lock_owner: u64, _flush: bool, reply: ReplyEmpty) {
+        // TODO implement
+    }
+    fn fsync(&mut self, _req: &Request, _ino: u64, _fh: u64, _datasync: bool, reply: ReplyEmpty) {
+        // TODO implement
+    }
     fn opendir(&mut self, _req: &Request, _ino: u64, _flags: u32, reply: ReplyOpen) {
         reply.opened(0, 0);
     }
-    fn readdir(&mut self, _req: &Request, ino: u64, _fh: u64, offset: i64, reply: ReplyDirectory) {
+    fn readdir(&mut self, _req: &Request, ino: u64, _fh: u64, offset: i64, mut reply: ReplyDirectory) {
         info!("readdir {} {}", ino, offset);
         if ino != 1 {
             reply.error(ENOENT);
@@ -112,7 +161,7 @@ impl Filesystem for DecoFS {
                 false => FileType::RegularFile
             };
 
-            entries.push((attr.st_ino(), file_type, file_name));
+            entries.push((attr.st_ino(), file_type, file_name.clone()));
             self.inodes.insert(attr.st_ino(), file_name);
         }
         info!("entries: {:?}", entries);
@@ -131,13 +180,28 @@ impl Filesystem for DecoFS {
     fn releasedir(&mut self, _req: &Request, _ino: u64, _fh: u64, _flags: u32, reply: ReplyEmpty) {
         reply.ok();
     }
-    fn fsyncdir(&mut self, _req: &Request, _ino: u64, _fh: u64, _datasync: bool, reply: ReplyEmpty) { ... }
-    fn statfs(&mut self, _req: &Request, _ino: u64, reply: ReplyStatfs) { ... }
-    fn getxattr(&mut self, _req: &Request, _ino: u64, _name: &OsStr, _size: u32, reply: ReplyXattr) { ... }
-    fn listxattr(&mut self, _req: &Request, _ino: u64, _size: u32, reply: ReplyXattr) { ... }
-    fn access(&mut self, _req: &Request, _ino: u64, _mask: u32, reply: ReplyEmpty) { ... }
-    fn getlk(&mut self, _req: &Request, _ino: u64, _fh: u64, _lock_owner: u64, _start: u64, _end: u64, _typ: u32, _pid: u32, reply: ReplyLock) { ... }
-    fn bmap(&mut self, _req: &Request, _ino: u64, _blocksize: u32, _idx: u64, reply: ReplyBmap) { ... }
+    fn fsyncdir(&mut self, _req: &Request, _ino: u64, _fh: u64, _datasync: bool, reply: ReplyEmpty) {
+        // TODO implement
+    }
+    fn statfs(&mut self, _req: &Request, _ino: u64, reply: ReplyStatfs) {
+        // TODO implement
+    }
+    fn getxattr(&mut self, _req: &Request, _ino: u64, _name: &OsStr, _size: u32, reply: ReplyXattr) {
+        // TODO implement
+    }
+    fn listxattr(&mut self, _req: &Request, _ino: u64, _size: u32, reply: ReplyXattr) {
+        // TODO implement
+        // TODO implement
+    }
+    fn access(&mut self, _req: &Request, _ino: u64, _mask: u32, reply: ReplyEmpty) {
+        // TODO implement
+    }
+    fn getlk(&mut self, _req: &Request, _ino: u64, _fh: u64, _lock_owner: u64, _start: u64, _end: u64, _typ: u32, _pid: u32, reply: ReplyLock) {
+        // TODO implement
+    }
+    fn bmap(&mut self, _req: &Request, _ino: u64, _blocksize: u32, _idx: u64, reply: ReplyBmap) {
+        // TODO implement
+    }
     // Disabled functionality
     /// For this deco filesystem, we do not support setting attributes.
     fn setattr(&mut self, _req: &Request, _ino: u64, _mode: Option<u32>, _uid: Option<u32>, _gid: Option<u32>, _size: Option<u64>, _atime: Option<Timespec>, _mtime: Option<Timespec>, _fh: Option<u64>, _crtime: Option<Timespec>, _chgtime: Option<Timespec>, _bkuptime: Option<Timespec>, _flags: Option<u32>, reply: ReplyAttr) {
