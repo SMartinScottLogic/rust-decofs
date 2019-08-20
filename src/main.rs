@@ -11,6 +11,9 @@ use std::collections::HashMap;
 use std::os::linux::fs::MetadataExt;
 use libc::{c_int, EROFS, ENOENT};
 use time::Timespec;
+use std::io::prelude::*;
+use std::io::SeekFrom;
+use std::fs::File;
 
 use fuse::{FileType, FileAttr, Filesystem, Request, ReplyData, ReplyEntry, ReplyAttr, ReplyStatfs, ReplyDirectory, ReplyEmpty, ReplyOpen, ReplyWrite, ReplyCreate, ReplyLock, ReplyBmap, ReplyXattr};
 
@@ -47,6 +50,18 @@ impl FuseError for ReplyWrite {
 }
 
 impl FuseError for ReplyCreate {
+    fn fuse_error(self, code: c_int) {
+        self.error(code);
+    }
+}
+
+impl FuseError for ReplyData {
+    fn fuse_error(self, code: c_int) {
+        self.error(code);
+    }
+}
+
+impl FuseError for ReplyOpen {
     fn fuse_error(self, code: c_int) {
         self.error(code);
     }
@@ -102,6 +117,14 @@ impl DecoFS {
             Err(e) => reply.fuse_error(e)
         }
     }
+
+    fn apply_to_ino<T: FuseError, F>(&self, ino: u64, reply: T, f: F) where F:Fn(PathBuf, T) {
+        match ino {
+            1 => f(self.sourceroot.clone(), reply),
+            _ => reply.fuse_error(ENOENT)
+        }
+
+    }
 }
 
 impl Filesystem for DecoFS {
@@ -120,13 +143,13 @@ impl Filesystem for DecoFS {
     fn forget(&mut self, _req: &Request, _ino: u64, _nlookup: u64) { }
     fn getattr(&mut self, _req: &Request, ino: u64, reply: ReplyAttr) {
         info!("getattr {:?}", ino);
-        match ino {
-            1 => reply.attr(&TTL, &self.stat(&self.sourceroot).unwrap()),
-            _ => reply.error(ENOENT)
-        }
+        self.apply_to_ino(ino, reply, |path, reply| reply.attr(&TTL, &self.stat(&path).unwrap()))
     }
-    fn readlink(&mut self, _req: &Request, _ino: u64, reply: ReplyData) {
-        // TODO implement
+    fn readlink(&mut self, _req: &Request, ino: u64, reply: ReplyData) {
+        self.apply_to_ino(ino, reply, |path, reply| match fs::read_link(&path) {
+            Ok(target) => reply.data(target.as_os_str().to_string_lossy().as_bytes()),
+            Err(e) => reply.fuse_error(e.raw_os_error().unwrap())
+        })
     }
     fn unlink(&mut self, _req: &Request, parent: u64, name: &OsStr, reply: ReplyEmpty) {
         self.apply_to_path(parent, name, reply, |path, reply| match fs::remove_file(&path) {
@@ -140,17 +163,30 @@ impl Filesystem for DecoFS {
                  Err(e) => reply.fuse_error(e.raw_os_error().unwrap())
             })
     }
-    fn open(&mut self, _req: &Request, _ino: u64, _flags: u32, reply: ReplyOpen) {
-        // TODO implement
+    fn open(&mut self, _req: &Request, ino: u64, _flags: u32, reply: ReplyOpen) {
+        self.apply_to_ino(ino, reply, |_path, reply| reply.opened(0, 0))
     }
-    fn read(&mut self, _req: &Request, _ino: u64, _fh: u64, _offset: i64, _size: u32, reply: ReplyData) {
-        // TODO implement
+    fn read(&mut self, _req: &Request, ino: u64, _fh: u64, offset: i64, size: u32, reply: ReplyData) {
+        self.apply_to_ino(ino, reply, |path, reply| {
+            let buffer = || -> io::Result<Vec<u8>> {
+                let mut f = File::open(&path)?;
+                f.seek(SeekFrom::Start(offset as u64))?;
+                let mut handle = f.take(size.into());
+                let mut buffer = Vec::new();
+                handle.read_to_end(&mut buffer)?;
+                Ok(buffer)
+            };
+            match buffer() {
+                Ok(buffer) => reply.data(&buffer),
+                Err(e) => reply.fuse_error(e.raw_os_error().unwrap())
+            }
+        })
     }
-    fn flush(&mut self, _req: &Request, _ino: u64, _fh: u64, _lock_owner: u64, reply: ReplyEmpty) {
-        // TODO implement
+    fn flush(&mut self, _req: &Request, ino: u64, _fh: u64, _lock_owner: u64, reply: ReplyEmpty) {
+        self.apply_to_ino(ino, reply, |_path, reply| reply.ok());
     }
-    fn release(&mut self, _req: &Request, _ino: u64, _fh: u64, _flags: u32, _lock_owner: u64, _flush: bool, reply: ReplyEmpty) {
-        // TODO implement
+    fn release(&mut self, _req: &Request, ino: u64, _fh: u64, _flags: u32, _lock_owner: u64, _flush: bool, reply: ReplyEmpty) {
+        self.apply_to_ino(ino, reply, |_path, reply| reply.ok());
     }
     fn fsync(&mut self, _req: &Request, _ino: u64, _fh: u64, _datasync: bool, reply: ReplyEmpty) {
         // TODO implement
