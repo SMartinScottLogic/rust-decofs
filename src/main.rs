@@ -6,7 +6,7 @@ extern crate time;
 use std::env;
 use std::{fs,io};
 use std::path::{Path, PathBuf};
-use std::ffi::{OsStr, OsString};
+use std::ffi::{CStr, CString, OsStr, OsString};
 use std::collections::HashMap;
 use std::os::linux::fs::MetadataExt;
 use libc::{c_int, EROFS, ENOENT};
@@ -14,6 +14,7 @@ use time::Timespec;
 use std::io::prelude::*;
 use std::io::SeekFrom;
 use std::fs::File;
+use std::os::unix::ffi::OsStrExt;
 
 use fuse::{FileType, FileAttr, Filesystem, Request, ReplyData, ReplyEntry, ReplyAttr, ReplyStatfs, ReplyDirectory, ReplyEmpty, ReplyOpen, ReplyWrite, ReplyCreate, ReplyLock, ReplyBmap, ReplyXattr};
 
@@ -62,6 +63,12 @@ impl FuseError for ReplyData {
 }
 
 impl FuseError for ReplyOpen {
+    fn fuse_error(self, code: c_int) {
+        self.error(code);
+    }
+}
+
+impl FuseError for ReplyStatfs {
     fn fuse_error(self, code: c_int) {
         self.error(code);
     }
@@ -233,8 +240,20 @@ impl Filesystem for DecoFS {
     fn fsyncdir(&mut self, _req: &Request, _ino: u64, _fh: u64, _datasync: bool, reply: ReplyEmpty) {
         // TODO implement
     }
-    fn statfs(&mut self, _req: &Request, _ino: u64, reply: ReplyStatfs) {
+    fn statfs(&mut self, _req: &Request, ino: u64, reply: ReplyStatfs) {
         // TODO implement
+        self.apply_to_ino(ino, reply, |path, reply| unsafe {
+            let stat = || -> io::Result<libc::statfs> {
+                let mut stat: libc::statfs = std::mem::uninitialized();
+                let cstr = CString::new(path.as_os_str().as_bytes())?;
+                libc::statfs(cstr.as_ptr(), &mut stat);
+                Ok(stat)
+            };
+            match stat() {
+                Ok(stat) => reply.statfs(stat.f_blocks, stat.f_bfree, stat.f_bavail, stat.f_files, stat.f_ffree, stat.f_bsize as u32, stat.f_namelen as u32, stat.f_frsize as u32),
+                Err(e) => reply.fuse_error(e.raw_os_error().unwrap())
+            }
+        })
     }
     fn getxattr(&mut self, _req: &Request, _ino: u64, _name: &OsStr, _size: u32, reply: ReplyXattr) {
         // TODO implement

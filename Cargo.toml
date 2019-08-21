@@ -10,3 +10,7 @@ fuse = "0.3.1"                 # Rust library for filesystems in userspace (FUSE
 log = "0.4.6"               # A lightweight logging facade for Rust
 env_logger = "0.6.1"                # A logging implementation for `log` which is configured via an environment variable.
 time = "0.1.42"                     # Utilities for working with time-related functions in Rust.
+
+[dev-dependencies]
+assert_cmd = "0.10"
+predicates = "1"
