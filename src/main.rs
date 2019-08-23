@@ -111,11 +111,16 @@ impl DecoFS {
       Ok(file_attr)
     }
 
-    fn get_source_path(&self, parent: u64, name: &OsStr) -> Result<PathBuf, c_int> {
-        match parent {
-            1 => Ok(self.sourceroot.join(name)),
-            _ => Err(ENOENT)
+    fn ino_to_path(&self, ino: u64) -> Result<PathBuf, c_int> {
+        match self.inodes.get(&ino) {
+            Some(pathname) => Ok(PathBuf::from(pathname)),
+            None => Err(ENOENT)
         }
+    }
+
+    fn get_source_path(&self, parent: u64, name: &OsStr) -> Result<PathBuf, c_int> {
+        let root = self.ino_to_path(parent)?;
+        Ok(root.join(name))
     }
 
     fn apply_to_path<T: FuseError, F>(&self, parent: u64, name: &OsStr, reply: T, f: F) where F:Fn(PathBuf, T) {
@@ -126,11 +131,10 @@ impl DecoFS {
     }
 
     fn apply_to_ino<T: FuseError, F>(&self, ino: u64, reply: T, f: F) where F:Fn(PathBuf, T) {
-        match ino {
-            1 => f(self.sourceroot.clone(), reply),
-            _ => reply.fuse_error(ENOENT)
+        match self.ino_to_path(ino) {
+            Ok(path) => f(path, reply),
+            Err(e) => reply.fuse_error(e)
         }
-
     }
 }
 
