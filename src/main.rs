@@ -1,3 +1,4 @@
+#[warn(unused_variables)]
 #[macro_use]
 extern crate log;
 extern crate env_logger;
@@ -6,7 +7,7 @@ extern crate time;
 use std::env;
 use std::{fs,io};
 use std::path::{Path, PathBuf};
-use std::ffi::{CStr, CString, OsStr, OsString};
+use std::ffi::{CString, OsStr};
 use std::collections::HashMap;
 use std::os::linux::fs::MetadataExt;
 use libc::{c_int, EROFS, ENOENT};
@@ -26,53 +27,24 @@ trait FuseError {
     fn fuse_error(self, code: c_int);
 }
 
-impl FuseError for ReplyEntry {
-    fn fuse_error(self, code: c_int) {
-        self.error(code);
+/// Macro to add FuseError trait
+macro_rules! add_fuse_error {
+    ($type: ty) => {
+        impl FuseError for $type {
+            fn fuse_error(self, code: c_int) {
+                self.error(code);
+            }
+        }
     }
 }
-
-impl FuseError for ReplyEmpty {
-    fn fuse_error(self, code: c_int) {
-        self.error(code);
-    }
-}
-
-impl FuseError for ReplyAttr {
-    fn fuse_error(self, code: c_int) {
-        self.error(code);
-    }
-}
-
-impl FuseError for ReplyWrite {
-    fn fuse_error(self, code: c_int) {
-        self.error(code);
-    }
-}
-
-impl FuseError for ReplyCreate {
-    fn fuse_error(self, code: c_int) {
-        self.error(code);
-    }
-}
-
-impl FuseError for ReplyData {
-    fn fuse_error(self, code: c_int) {
-        self.error(code);
-    }
-}
-
-impl FuseError for ReplyOpen {
-    fn fuse_error(self, code: c_int) {
-        self.error(code);
-    }
-}
-
-impl FuseError for ReplyStatfs {
-    fn fuse_error(self, code: c_int) {
-        self.error(code);
-    }
-}
+add_fuse_error!(ReplyEntry);
+add_fuse_error!(ReplyEmpty);
+add_fuse_error!(ReplyAttr);
+add_fuse_error!(ReplyWrite);
+add_fuse_error!(ReplyOpen);
+add_fuse_error!(ReplyData);
+add_fuse_error!(ReplyStatfs);
+add_fuse_error!(ReplyCreate);
 
 struct DecoFS {
     sourceroot: PathBuf,
@@ -199,11 +171,11 @@ impl Filesystem for DecoFS {
     fn release(&mut self, _req: &Request, ino: u64, _fh: u64, _flags: u32, _lock_owner: u64, _flush: bool, reply: ReplyEmpty) {
         self.apply_to_ino(ino, reply, |_path, reply| reply.ok());
     }
-    fn fsync(&mut self, _req: &Request, _ino: u64, _fh: u64, _datasync: bool, reply: ReplyEmpty) {
-        // TODO implement
+    fn fsync(&mut self, _req: &Request, ino: u64, _fh: u64, _datasync: bool, reply: ReplyEmpty) {
+        self.apply_to_ino(ino, reply, |_path, reply| reply.ok());
     }
-    fn opendir(&mut self, _req: &Request, _ino: u64, _flags: u32, reply: ReplyOpen) {
-        reply.opened(0, 0);
+    fn opendir(&mut self, _req: &Request, ino: u64, _flags: u32, reply: ReplyOpen) {
+        self.apply_to_ino(ino, reply, |_path, reply| reply.opened(0, 0));
     }
     fn readdir(&mut self, _req: &Request, ino: u64, _fh: u64, offset: i64, mut reply: ReplyDirectory) {
         info!("readdir {} {}", ino, offset);
@@ -241,11 +213,10 @@ impl Filesystem for DecoFS {
     fn releasedir(&mut self, _req: &Request, _ino: u64, _fh: u64, _flags: u32, reply: ReplyEmpty) {
         reply.ok();
     }
-    fn fsyncdir(&mut self, _req: &Request, _ino: u64, _fh: u64, _datasync: bool, reply: ReplyEmpty) {
-        // TODO implement
+    fn fsyncdir(&mut self, _req: &Request, ino: u64, _fh: u64, _datasync: bool, reply: ReplyEmpty) {
+        self.apply_to_ino(ino, reply, |_path, reply| reply.ok());
     }
     fn statfs(&mut self, _req: &Request, ino: u64, reply: ReplyStatfs) {
-        // TODO implement
         self.apply_to_ino(ino, reply, |path, reply| unsafe {
             let stat = || -> io::Result<libc::statfs> {
                 let mut stat: libc::statfs = std::mem::uninitialized();
@@ -263,7 +234,6 @@ impl Filesystem for DecoFS {
         // TODO implement
     }
     fn listxattr(&mut self, _req: &Request, _ino: u64, _size: u32, reply: ReplyXattr) {
-        // TODO implement
         // TODO implement
     }
     fn access(&mut self, _req: &Request, _ino: u64, _mask: u32, reply: ReplyEmpty) {
