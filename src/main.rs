@@ -54,7 +54,9 @@ struct DecoFS {
 
 impl DecoFS {
     fn new(sourceroot: &OsStr) -> DecoFS {
-      DecoFS { sourceroot: PathBuf::from(sourceroot), inodes: HashMap::new() }
+        let mut inodes = HashMap::new();
+        inodes.insert(1, sourceroot.to_str().unwrap().to_string());
+      DecoFS { sourceroot: PathBuf::from(sourceroot), inodes }
     }
     fn stat(&self, path: &PathBuf) -> io::Result<FileAttr> {
       info!("stat {:?}", path);
