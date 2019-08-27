@@ -115,7 +115,7 @@ impl Filesystem for DecoFS {
     fn init(&mut self, _req: &Request) -> Result<(), c_int> { Ok(()) }
     fn destroy(&mut self, _req: &Request) { }
     fn lookup(&mut self, _req: &Request, parent: u64, name: &OsStr, reply: ReplyEntry) {
-        info!("readdir {} {:?}", parent, name);
+        info!("lookup {} {:?}", parent, name);
         self.apply_to_path(parent, name, reply, |path, reply| match &self.stat(&path) {
                 Ok(stat) => {
                     //self.inodes.insert(stat.ino, name.to_os_string());
@@ -130,27 +130,32 @@ impl Filesystem for DecoFS {
         self.apply_to_ino(ino, reply, |path, reply| reply.attr(&TTL, &self.stat(&path).unwrap()))
     }
     fn readlink(&mut self, _req: &Request, ino: u64, reply: ReplyData) {
+        info!("readlink {:?}", ino);
         self.apply_to_ino(ino, reply, |path, reply| match fs::read_link(&path) {
             Ok(target) => reply.data(target.as_os_str().to_string_lossy().as_bytes()),
             Err(e) => reply.fuse_error(e.raw_os_error().unwrap())
         })
     }
     fn unlink(&mut self, _req: &Request, parent: u64, name: &OsStr, reply: ReplyEmpty) {
+        info!("unlink {:?} {:?}", parent, name);
         self.apply_to_path(parent, name, reply, |path, reply| match fs::remove_file(&path) {
                  Ok(_) => reply.ok(),
                  Err(e) => reply.fuse_error(e.raw_os_error().unwrap())
             })
     }
     fn rmdir(&mut self, _req: &Request, parent: u64, name: &OsStr, reply: ReplyEmpty) {
+        info!("rmdir {:?} {:?}", parent, name);
         self.apply_to_path(parent, name, reply, |path, reply| match fs::remove_dir(&path) {
                  Ok(_) => reply.ok(),
                  Err(e) => reply.fuse_error(e.raw_os_error().unwrap())
             })
     }
     fn open(&mut self, _req: &Request, ino: u64, _flags: u32, reply: ReplyOpen) {
+        info!("open {:?}", ino);
         self.apply_to_ino(ino, reply, |_path, reply| reply.opened(0, 0))
     }
     fn read(&mut self, _req: &Request, ino: u64, _fh: u64, offset: i64, size: u32, reply: ReplyData) {
+        info!("read {:?} {} {}", ino, offset, size);
         self.apply_to_ino(ino, reply, |path, reply| {
             let buffer = || -> io::Result<Vec<u8>> {
                 let mut f = File::open(&path)?;
@@ -218,6 +223,7 @@ impl Filesystem for DecoFS {
         self.apply_to_ino(ino, reply, |_path, reply| reply.ok());
     }
     fn statfs(&mut self, _req: &Request, ino: u64, reply: ReplyStatfs) {
+        info!("statfs {:?}", ino);
         self.apply_to_ino(ino, reply, |path, reply| unsafe {
             let stat = || -> io::Result<libc::statfs> {
                 let mut stat: libc::statfs = std::mem::uninitialized();
@@ -231,10 +237,12 @@ impl Filesystem for DecoFS {
             }
         })
     }
-    fn getxattr(&mut self, _req: &Request, _ino: u64, _name: &OsStr, _size: u32, reply: ReplyXattr) {
+    fn getxattr(&mut self, _req: &Request, ino: u64, name: &OsStr, _size: u32, reply: ReplyXattr) {
+        info!("getxattr {:?} {:?}", ino, name);
         // TODO implement
     }
     fn listxattr(&mut self, _req: &Request, ino: u64, size: u32, reply: ReplyXattr) {
+        info!("listxattr {:?} {}", ino, size);
         self.apply_to_ino(ino, reply, |path, reply| {
             let xattr = || -> io::Result<String> {
                 Ok("".to_string())
