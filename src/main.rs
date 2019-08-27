@@ -125,13 +125,17 @@ impl Filesystem for DecoFS {
     fn destroy(&mut self, _req: &Request) { }
     fn lookup(&mut self, _req: &Request, parent: u64, name: &OsStr, reply: ReplyEntry) {
         info!("lookup {} {:?}", parent, name);
-        self.apply_to_path(parent, name, reply, |path, reply| match &self.stat(&path) {
-                Ok(stat) => {
-                    //self.inodes.insert(stat.ino, name.to_os_string());
-                    reply.entry(&TTL, stat, 0);
-                    },
-                Err(e) => reply.fuse_error(e.raw_os_error().unwrap())
-            })
+        let path = match self.get_source_path(parent, name) {
+            Ok(path) => path,
+            Err(e) => {reply.fuse_error(e);return;}
+        };
+        match &self.stat(&path) {
+            Ok(stat) => {
+                self.inodes.insert(stat.ino, path.as_os_str().to_string_lossy().to_string());
+                reply.entry(&TTL, stat, 0);
+                },
+            Err(e) => reply.fuse_error(e.raw_os_error().unwrap())
+        }
     }
     fn forget(&mut self, _req: &Request, _ino: u64, _nlookup: u64) { }
     fn getattr(&mut self, _req: &Request, ino: u64, reply: ReplyAttr) {
