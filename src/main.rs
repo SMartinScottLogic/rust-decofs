@@ -87,9 +87,16 @@ impl DecoFS {
     }
 
     fn ino_to_path(&self, ino: u64) -> Result<PathBuf, c_int> {
+        info!("ino_to_path {}", ino);
         match self.inodes.get(&ino) {
-            Some(pathname) => Ok(PathBuf::from(pathname)),
-            None => Err(ENOENT)
+            Some(pathname) => {
+                info!("ino_to_path {} -> {}", ino, pathname);
+                Ok(PathBuf::from(pathname))
+            },
+            None => {
+                info!("ino_to_path {} ENOENT", ino);
+                Err(ENOENT)
+            }
         }
     }
 
