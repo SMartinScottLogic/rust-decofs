@@ -210,7 +210,7 @@ impl Filesystem for DecoFS {
             };
 
             entries.push((attr.st_ino(), file_type, file_name.clone()));
-            self.inodes.insert(attr.st_ino(), file_name);
+            self.inodes.insert(attr.st_ino(), self.sourceroot.join(file_name).to_str().unwrap().to_string());
         }
         info!("entries: {:?}", entries);
 
