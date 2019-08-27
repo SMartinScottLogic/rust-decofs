@@ -45,6 +45,7 @@ add_fuse_error!(ReplyOpen);
 add_fuse_error!(ReplyData);
 add_fuse_error!(ReplyStatfs);
 add_fuse_error!(ReplyCreate);
+add_fuse_error!(ReplyXattr);
 
 struct DecoFS {
     sourceroot: PathBuf,
@@ -233,7 +234,15 @@ impl Filesystem for DecoFS {
     fn getxattr(&mut self, _req: &Request, _ino: u64, _name: &OsStr, _size: u32, reply: ReplyXattr) {
         // TODO implement
     }
-    fn listxattr(&mut self, _req: &Request, _ino: u64, _size: u32, reply: ReplyXattr) {
+    fn listxattr(&mut self, _req: &Request, ino: u64, size: u32, reply: ReplyXattr) {
+        self.apply_to_ino(ino, reply, |path, reply| {
+            let xattr = || -> io::Result<String> {
+                Ok("".to_string())
+            };
+            match size {
+                0 => {let mut list:i8 = 0;reply.size(libc::listxattr(CString::new(path.as_os_str().as_bytes()).unwrap().as_ptr(),  &list, 0) as u32);}
+            }
+        })
         // TODO implement
     }
     fn access(&mut self, _req: &Request, _ino: u64, _mask: u32, reply: ReplyEmpty) {
