@@ -240,7 +240,8 @@ impl Filesystem for DecoFS {
                 Ok("".to_string())
             };
             match size {
-                0 => {let mut list:i8 = 0;reply.size(libc::listxattr(CString::new(path.as_os_str().as_bytes()).unwrap().as_ptr(),  &list, 0) as u32);}
+                0 => unsafe {let mut list:i8 = 0;reply.size(libc::listxattr(CString::new(path.as_os_str().as_bytes()).unwrap().as_ptr(),  &mut list, 0) as u32);},
+                _ => reply.fuse_error(ENOENT)
             }
         })
         // TODO implement
