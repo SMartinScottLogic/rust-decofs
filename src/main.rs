@@ -241,6 +241,9 @@ impl Filesystem for DecoFS {
     }
     fn getxattr(&mut self, _req: &Request, ino: u64, name: &OsStr, _size: u32, reply: ReplyXattr) {
         info!("getxattr {:?} {:?}", ino, name);
+        self.apply_to_ino(ino, reply, |path, reply| {
+            reply.fuse_error(ENOENT);
+        })
         // TODO implement
     }
     fn listxattr(&mut self, _req: &Request, ino: u64, size: u32, reply: ReplyXattr) {
