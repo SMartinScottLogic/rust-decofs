@@ -281,47 +281,58 @@ impl Filesystem for DecoFS {
     }
     // Disabled functionality
     /// For this deco filesystem, we do not support setting attributes.
-    fn setattr(&mut self, _req: &Request, _ino: u64, _mode: Option<u32>, _uid: Option<u32>, _gid: Option<u32>, _size: Option<u64>, _atime: Option<Timespec>, _mtime: Option<Timespec>, _fh: Option<u64>, _crtime: Option<Timespec>, _chgtime: Option<Timespec>, _bkuptime: Option<Timespec>, _flags: Option<u32>, reply: ReplyAttr) {
+    fn setattr(&mut self, _req: &Request, ino: u64, _mode: Option<u32>, _uid: Option<u32>, _gid: Option<u32>, _size: Option<u64>, _atime: Option<Timespec>, _mtime: Option<Timespec>, _fh: Option<u64>, _crtime: Option<Timespec>, _chgtime: Option<Timespec>, _bkuptime: Option<Timespec>, _flags: Option<u32>, reply: ReplyAttr) {
+        info!("setattr {}", ino);
         reply.fuse_error(EROFS)
     }
     /// For this deco filesystem, we do not support creating nodes (regular file, character device, block device, fifo or socket).
-    fn mknod(&mut self, _req: &Request, _parent: u64, _name: &OsStr, _mode: u32, _rdev: u32, reply: ReplyEntry) {
+    fn mknod(&mut self, _req: &Request, parent: u64, name: &OsStr, _mode: u32, _rdev: u32, reply: ReplyEntry) {
+        info!("mknod {} {:?}", parent, name);
         reply.fuse_error(EROFS)
     }
     /// For this deco filesystem, we do not support creating directories.
-    fn mkdir(&mut self, _req: &Request, _parent: u64, _name: &OsStr, _mode: u32, reply: ReplyEntry) {
+    fn mkdir(&mut self, _req: &Request, parent: u64, name: &OsStr, _mode: u32, reply: ReplyEntry) {
+        info!("mkdir {} {:?}", parent, name);
         reply.fuse_error(EROFS)
     }
     /// For this deco filesystem, we do not support creating symbolic links.
-    fn symlink(&mut self, _req: &Request, _parent: u64, _name: &OsStr, _link: &Path, reply: ReplyEntry) {
+    fn symlink(&mut self, _req: &Request, parent: u64, name: &OsStr, _link: &Path, reply: ReplyEntry) {
+        info!("symlink {} {:?}", parent, name);
         reply.fuse_error(EROFS)
      }
     /// For this deco filesystem, we do not support renaming files.
-    fn rename(&mut self, _req: &Request, _parent: u64, _name: &OsStr, _newparent: u64, _newname: &OsStr, reply: ReplyEmpty) {
+    fn rename(&mut self, _req: &Request, parent: u64, name: &OsStr, _newparent: u64, _newname: &OsStr, reply: ReplyEmpty) {
+        info!("rename {} {:?}", parent, name);
         reply.fuse_error(EROFS)
     }
     /// For this deco filesystem, we do not support creating hard links.
-    fn link(&mut self, _req: &Request, _ino: u64, _newparent: u64, _newname: &OsStr, reply: ReplyEntry) {
+    fn link(&mut self, _req: &Request, ino: u64, newparent: u64, newname: &OsStr, reply: ReplyEntry) {
+        info!("link {} {} {:?}", ino, newparent, newname);
         reply.fuse_error(EROFS)
     }
     /// For this deco filesystem, we do not support writing to files.
-    fn write(&mut self, _req: &Request, _ino: u64, _fh: u64, _offset: i64, _data: &[u8], _flags: u32, reply: ReplyWrite) {
+    fn write(&mut self, _req: &Request, ino: u64, fh: u64, offset: i64, data: &[u8], _flags: u32, reply: ReplyWrite) {
+        info!("write {} {} {}", ino, offset, data.len());
         reply.fuse_error(EROFS)
     }
     /// For this deco filesystem, we do not support writing to extended attributes.
-    fn setxattr(&mut self, _req: &Request, _ino: u64, _name: &OsStr, _value: &[u8], _flags: u32, _position: u32, reply: ReplyEmpty) {
+    fn setxattr(&mut self, _req: &Request, ino: u64, name: &OsStr, value: &[u8], _flags: u32, _position: u32, reply: ReplyEmpty) {
+        info!("setxattr {} {:?} {:?}", ino, name, value);
         reply.fuse_error(EROFS)
     }
     /// For this deco filesystem, we do not support removing extended attributes.
-    fn removexattr(&mut self, _req: &Request, _ino: u64, _name: &OsStr, reply: ReplyEmpty) {
+    fn removexattr(&mut self, _req: &Request, ino: u64, name: &OsStr, reply: ReplyEmpty) {
+        info!("removexattr {} {:?}", ino, name);
         reply.fuse_error(EROFS)
     }
     /// For this deco filesystem, we do not support creating files.
-    fn create(&mut self, _req: &Request, _parent: u64, _name: &OsStr, _mode: u32, _flags: u32, reply: ReplyCreate) {
+    fn create(&mut self, _req: &Request, parent: u64, name: &OsStr, _mode: u32, _flags: u32, reply: ReplyCreate) {
+        info!("create {} {:?}", parent, name);
         reply.fuse_error(EROFS)
     }
     /// For this deco filesystem, we do not support file locks.
-    fn setlk(&mut self, _req: &Request, _ino: u64, _fh: u64, _lock_owner: u64, _start: u64, _end: u64, _typ: u32, _pid: u32, _sleep: bool, reply: ReplyEmpty) {
+    fn setlk(&mut self, _req: &Request, ino: u64, _fh: u64, _lock_owner: u64, _start: u64, _end: u64, _typ: u32, _pid: u32, _sleep: bool, reply: ReplyEmpty) {
+        info!("setlk {}", ino);
         reply.fuse_error(EROFS)
     }
 }
