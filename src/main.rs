@@ -1,4 +1,4 @@
-#[warn(unused_variables)]
+#![warn(missing_docs, bad_style, unused, unused_extern_crates, unused_import_braces, unused_qualifications, missing_debug_implementations, unused_variables)]
 #[macro_use]
 extern crate log;
 extern crate env_logger;
@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 use std::ffi::{CString, OsStr};
 use std::collections::HashMap;
 use std::os::linux::fs::MetadataExt;
-use libc::{c_int, EROFS, ENOENT};
+use libc::{c_int, EPERM, ENOENT};
 use time::Timespec;
 use std::io::prelude::*;
 use std::io::SeekFrom;
@@ -277,8 +277,9 @@ impl Filesystem for DecoFS {
         })
         // TODO implement
     }
-    fn access(&mut self, _req: &Request, _ino: u64, _mask: u32, reply: ReplyEmpty) {
-        // TODO implement
+    fn access(&mut self, _req: &Request, ino: u64, mask: u32, reply: ReplyEmpty) {
+        info!("access {} {}", ino, mask);
+        self.apply_to_ino(ino, reply, |path, reply| reply.ok());
     }
     fn getlk(&mut self, _req: &Request, _ino: u64, _fh: u64, _lock_owner: u64, _start: u64, _end: u64, _typ: u32, _pid: u32, reply: ReplyLock) {
         // TODO implement
@@ -290,58 +291,58 @@ impl Filesystem for DecoFS {
     /// For this deco filesystem, we do not support setting attributes.
     fn setattr(&mut self, _req: &Request, ino: u64, _mode: Option<u32>, _uid: Option<u32>, _gid: Option<u32>, _size: Option<u64>, _atime: Option<Timespec>, _mtime: Option<Timespec>, _fh: Option<u64>, _crtime: Option<Timespec>, _chgtime: Option<Timespec>, _bkuptime: Option<Timespec>, _flags: Option<u32>, reply: ReplyAttr) {
         info!("setattr {}", ino);
-        reply.fuse_error(EROFS)
+        reply.fuse_error(EPERM)
     }
     /// For this deco filesystem, we do not support creating nodes (regular file, character device, block device, fifo or socket).
     fn mknod(&mut self, _req: &Request, parent: u64, name: &OsStr, _mode: u32, _rdev: u32, reply: ReplyEntry) {
         info!("mknod {} {:?}", parent, name);
         println!("mknod {} {:?}", parent, name);
-        reply.fuse_error(EROFS)
+        reply.fuse_error(EPERM)
     }
     /// For this deco filesystem, we do not support creating directories.
     fn mkdir(&mut self, _req: &Request, parent: u64, name: &OsStr, _mode: u32, reply: ReplyEntry) {
         info!("mkdir {} {:?}", parent, name);
-        reply.fuse_error(EROFS)
+        reply.fuse_error(EPERM)
     }
     /// For this deco filesystem, we do not support creating symbolic links.
     fn symlink(&mut self, _req: &Request, parent: u64, name: &OsStr, _link: &Path, reply: ReplyEntry) {
         info!("symlink {} {:?}", parent, name);
-        reply.fuse_error(EROFS)
+        reply.fuse_error(EPERM)
      }
     /// For this deco filesystem, we do not support renaming files.
     fn rename(&mut self, _req: &Request, parent: u64, name: &OsStr, _newparent: u64, _newname: &OsStr, reply: ReplyEmpty) {
         info!("rename {} {:?}", parent, name);
-        reply.fuse_error(EROFS)
+        reply.fuse_error(EPERM)
     }
     /// For this deco filesystem, we do not support creating hard links.
     fn link(&mut self, _req: &Request, ino: u64, newparent: u64, newname: &OsStr, reply: ReplyEntry) {
         info!("link {} {} {:?}", ino, newparent, newname);
-        reply.fuse_error(EROFS)
+        reply.fuse_error(EPERM)
     }
     /// For this deco filesystem, we do not support writing to files.
     fn write(&mut self, _req: &Request, ino: u64, fh: u64, offset: i64, data: &[u8], _flags: u32, reply: ReplyWrite) {
         info!("write {} {} {}", ino, offset, data.len());
-        reply.fuse_error(EROFS)
+        reply.fuse_error(EPERM)
     }
     /// For this deco filesystem, we do not support writing to extended attributes.
     fn setxattr(&mut self, _req: &Request, ino: u64, name: &OsStr, value: &[u8], _flags: u32, _position: u32, reply: ReplyEmpty) {
         info!("setxattr {} {:?} {:?}", ino, name, value);
-        reply.fuse_error(EROFS)
+        reply.fuse_error(EPERM)
     }
     /// For this deco filesystem, we do not support removing extended attributes.
     fn removexattr(&mut self, _req: &Request, ino: u64, name: &OsStr, reply: ReplyEmpty) {
         info!("removexattr {} {:?}", ino, name);
-        reply.fuse_error(EROFS)
+        reply.fuse_error(EPERM)
     }
     /// For this deco filesystem, we do not support creating files.
     fn create(&mut self, _req: &Request, parent: u64, name: &OsStr, _mode: u32, _flags: u32, reply: ReplyCreate) {
         info!("create {} {:?}", parent, name);
-        reply.fuse_error(EROFS)
+        reply.fuse_error(EPERM)
     }
     /// For this deco filesystem, we do not support file locks.
     fn setlk(&mut self, _req: &Request, ino: u64, _fh: u64, _lock_owner: u64, _start: u64, _end: u64, _typ: u32, _pid: u32, _sleep: bool, reply: ReplyEmpty) {
         info!("setlk {}", ino);
-        reply.fuse_error(EROFS)
+        reply.fuse_error(EPERM)
     }
 }
 
@@ -352,7 +353,7 @@ fn main() {
     let sourceroot = env::args_os().nth(2).unwrap();
 
     let fs = DecoFS::new(&sourceroot);
-    let options = ["-o", "ro", "-o", "fsname=decofs", "-o", "allow_other"]
+    let options = ["-o", "rw", "-o", "fsname=decofs", "-o", "allow_other"]
         .iter()
         .map(|o| o.as_ref())
         .collect::<Vec<&OsStr>>();
