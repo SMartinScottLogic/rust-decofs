@@ -121,8 +121,13 @@ impl DecoFS {
 }
 
 impl Filesystem for DecoFS {
-    fn init(&mut self, _req: &Request) -> Result<(), c_int> { Ok(()) }
-    fn destroy(&mut self, _req: &Request) { }
+    fn init(&mut self, _req: &Request) -> Result<(), c_int> { 
+        info!("init");
+        Ok(())
+    }
+    fn destroy(&mut self, _req: &Request) {
+        info!("destroy");
+    }
     fn lookup(&mut self, _req: &Request, parent: u64, name: &OsStr, reply: ReplyEntry) {
         info!("lookup {} {:?}", parent, name);
         let path = match self.get_source_path(parent, name) {
@@ -137,7 +142,9 @@ impl Filesystem for DecoFS {
             Err(e) => reply.fuse_error(e.raw_os_error().unwrap())
         }
     }
-    fn forget(&mut self, _req: &Request, _ino: u64, _nlookup: u64) { }
+    fn forget(&mut self, _req: &Request, ino: u64, _nlookup: u64) { 
+        info!("forget {}", ino);
+    }
     fn getattr(&mut self, _req: &Request, ino: u64, reply: ReplyAttr) {
         info!("getattr {:?}", ino);
         self.apply_to_ino(ino, reply, |path, reply| reply.attr(&TTL, &self.stat(&path).unwrap()))
@@ -288,6 +295,7 @@ impl Filesystem for DecoFS {
     /// For this deco filesystem, we do not support creating nodes (regular file, character device, block device, fifo or socket).
     fn mknod(&mut self, _req: &Request, parent: u64, name: &OsStr, _mode: u32, _rdev: u32, reply: ReplyEntry) {
         info!("mknod {} {:?}", parent, name);
+        println!("mknod {} {:?}", parent, name);
         reply.fuse_error(EROFS)
     }
     /// For this deco filesystem, we do not support creating directories.

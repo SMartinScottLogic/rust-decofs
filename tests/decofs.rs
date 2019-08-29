@@ -104,8 +104,8 @@ impl DerefMut for MutexMounterGuard<'_> {
 fn can_readthru() -> Result<(), Box<dyn std::error::Error>> {
     let actual = {
         let mounter = MOUNTER.lock()?;
-        fs::write(mounter.source().join("hello"), "world")?;
-        let actual = fs::read_to_string(mounter.target().join("hello"))?;
+        fs::write(mounter.source().join("read"), "world")?;
+        let actual = fs::read_to_string(mounter.target().join("read"))?;
         actual
     };
     assert_eq!(actual, "world");
@@ -115,9 +115,26 @@ fn can_readthru() -> Result<(), Box<dyn std::error::Error>> {
 #[test]
 fn cannot_writethru() -> Result<(), Box<dyn std::error::Error>> {
     let mounter = MOUNTER.lock()?;
-    match fs::write(mounter.target().join("hello"), "goodbye") {
+    match fs::write(mounter.target().join("write"), "goodbye") {
         Err(ref e) if e.raw_os_error() == Some(EROFS) => assert!(true),
         _ => assert!(false)
     };
     Ok(())
 }
+
+#[test]
+fn can_deletethru() -> Result<(), Box<dyn std::error::Error>> {
+    let actual = {
+        let mounter = MOUNTER.lock()?;
+        fs::write(mounter.source().join("delete"), "world")?;
+        let target = mounter.target().join("delete");
+        println!("attempt to remove: {:?}", target);
+        fs::remove_file(target)
+    };
+    match actual {
+        Ok(_) => assert!(true),
+        Err(e) => {println!("error: {:?}", e);assert!(false);},
+    };
+    Ok(())
+}
+
