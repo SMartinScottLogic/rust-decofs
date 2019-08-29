@@ -4,6 +4,7 @@ extern crate lazy_static;
 use assert_cmd::prelude::*; // Add methods on commands
 use std::path::PathBuf;
 use std::process::{Child, Command}; // Run programs
+use libc::{EROFS};
 use std::{fs, thread, time};
 
 use std::ops::{Deref, DerefMut};
@@ -108,5 +109,15 @@ fn can_readthru() -> Result<(), Box<dyn std::error::Error>> {
         actual
     };
     assert_eq!(actual, "world");
+    Ok(())
+}
+
+#[test]
+fn cannot_writethru() -> Result<(), Box<dyn std::error::Error>> {
+    let mounter = MOUNTER.lock()?;
+    match fs::write(mounter.target().join("hello"), "goodbye") {
+        Err(ref e) if e.raw_os_error() == Some(EROFS) => assert!(true),
+        _ => assert!(false)
+    };
     Ok(())
 }
