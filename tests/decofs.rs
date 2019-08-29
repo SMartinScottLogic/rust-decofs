@@ -1,16 +1,16 @@
 #[macro_use]
 extern crate lazy_static;
 
-use std::{fs, thread, time};
-use std::process::{Command, Child};  // Run programs
 use assert_cmd::prelude::*; // Add methods on commands
 use std::path::PathBuf;
+use std::process::{Child, Command}; // Run programs
+use std::{fs, thread, time};
 
-use std::sync::{Mutex, MutexGuard, PoisonError};
 use std::ops::{Deref, DerefMut};
+use std::sync::{Mutex, MutexGuard, PoisonError};
 
 struct FuseMounter {
-    child: Option<Child>
+    child: Option<Child>,
 }
 
 impl FuseMounter {
@@ -35,7 +35,11 @@ impl FuseMounter {
     }
 
     fn umount(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        Command::new("fusermount").arg("-u").arg(self.target()).spawn()?.wait()?;
+        Command::new("fusermount")
+            .arg("-u")
+            .arg(self.target())
+            .spawn()?
+            .wait()?;
         let child = self.child.take();
         child.unwrap().wait()?;
         Ok(())
@@ -47,16 +51,18 @@ lazy_static! {
 }
 
 struct MutexMounter {
-    mounter: Mutex<FuseMounter>
+    mounter: Mutex<FuseMounter>,
 }
 
 struct MutexMounterGuard<'a> {
-    inner_guard: MutexGuard<'a, FuseMounter>
+    inner_guard: MutexGuard<'a, FuseMounter>,
 }
 
 impl MutexMounter {
     fn new() -> MutexMounter {
-        MutexMounter { mounter: Mutex::new(FuseMounter::new()) }
+        MutexMounter {
+            mounter: Mutex::new(FuseMounter::new()),
+        }
     }
 
     fn lock(&self) -> Result<MutexMounterGuard, PoisonError<MutexMounterGuard>> {
@@ -65,7 +71,9 @@ impl MutexMounter {
 }
 
 impl MutexMounterGuard<'_> {
-    fn new(mut inner_guard: MutexGuard<FuseMounter>) -> Result<MutexMounterGuard, PoisonError<MutexMounterGuard>> {
+    fn new(
+        mut inner_guard: MutexGuard<FuseMounter>,
+    ) -> Result<MutexMounterGuard, PoisonError<MutexMounterGuard>> {
         inner_guard.mount().unwrap();
         Ok(MutexMounterGuard { inner_guard })
     }
@@ -94,10 +102,10 @@ impl DerefMut for MutexMounterGuard<'_> {
 #[test]
 fn can_readthru() -> Result<(), Box<dyn std::error::Error>> {
     let actual = {
-    let mounter = MOUNTER.lock()?;
-    fs::write(mounter.source().join("hello"), "world")?;
-    let actual = fs::read_to_string(mounter.target().join("hello"))?;
-    actual
+        let mounter = MOUNTER.lock()?;
+        fs::write(mounter.source().join("hello"), "world")?;
+        let actual = fs::read_to_string(mounter.target().join("hello"))?;
+        actual
     };
     assert_eq!(actual, "world");
     Ok(())
