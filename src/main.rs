@@ -13,7 +13,7 @@ use std::path::{Path, PathBuf};
 use std::ffi::{CString, OsStr};
 use std::collections::HashMap;
 use std::os::linux::fs::MetadataExt;
-use libc::{c_int, EPERM, ENOENT};
+use libc::{c_int, EPERM, ENOENT, ENOTSUP};
 use time::Timespec;
 use std::io::prelude::*;
 use std::io::SeekFrom;
@@ -263,7 +263,7 @@ impl Filesystem for DecoFS {
     fn getxattr(&mut self, _req: &Request, ino: u64, name: &OsStr, _size: u32, reply: ReplyXattr) {
         info!("getxattr {:?} {:?}", ino, name);
         self.apply_to_ino(ino, reply, |_path, reply| {
-            reply.fuse_error(ENOENT);
+            reply.fuse_error(ENOTSUP);
         })
     }
     fn listxattr(&mut self, _req: &Request, ino: u64, size: u32, reply: ReplyXattr) {
