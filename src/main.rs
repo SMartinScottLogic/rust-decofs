@@ -1,8 +1,11 @@
+//! Implementation of a pass-through filesystem, to assist with disk decommissioning.
+//!
+//! Supports file deletion, and read operations, but no creation or renaming.
 #![warn(missing_docs, bad_style, unused, unused_extern_crates, unused_import_braces, unused_qualifications, missing_debug_implementations, unused_variables)]
 #[macro_use]
 extern crate log;
-extern crate env_logger;
-extern crate time;
+use env_logger;
+use time;
 
 use std::env;
 use std::{fs,io};
@@ -121,7 +124,7 @@ impl DecoFS {
 }
 
 impl Filesystem for DecoFS {
-    fn init(&mut self, _req: &Request) -> Result<(), c_int> { 
+    fn init(&mut self, _req: &Request) -> Result<(), c_int> {
         info!("init");
         Ok(())
     }
@@ -142,7 +145,7 @@ impl Filesystem for DecoFS {
             Err(e) => reply.fuse_error(e.raw_os_error().unwrap())
         }
     }
-    fn forget(&mut self, _req: &Request, ino: u64, _nlookup: u64) { 
+    fn forget(&mut self, _req: &Request, ino: u64, _nlookup: u64) {
         info!("forget {}", ino);
     }
     fn getattr(&mut self, _req: &Request, ino: u64, reply: ReplyAttr) {
@@ -259,10 +262,9 @@ impl Filesystem for DecoFS {
     }
     fn getxattr(&mut self, _req: &Request, ino: u64, name: &OsStr, _size: u32, reply: ReplyXattr) {
         info!("getxattr {:?} {:?}", ino, name);
-        self.apply_to_ino(ino, reply, |path, reply| {
+        self.apply_to_ino(ino, reply, |_path, reply| {
             reply.fuse_error(ENOENT);
         })
-        // TODO implement
     }
     fn listxattr(&mut self, _req: &Request, ino: u64, size: u32, reply: ReplyXattr) {
         info!("listxattr {:?} {}", ino, size);
@@ -272,14 +274,14 @@ impl Filesystem for DecoFS {
             };
             match size {
                 0 => unsafe {let mut list:i8 = 0;reply.size(libc::listxattr(CString::new(path.as_os_str().as_bytes()).unwrap().as_ptr(),  &mut list, 0) as u32);},
+                // TODO implement
                 _ => reply.fuse_error(ENOENT)
             }
         })
-        // TODO implement
     }
     fn access(&mut self, _req: &Request, ino: u64, mask: u32, reply: ReplyEmpty) {
         info!("access {} {}", ino, mask);
-        self.apply_to_ino(ino, reply, |path, reply| reply.ok());
+        self.apply_to_ino(ino, reply, |_path, reply| reply.ok());
     }
     fn getlk(&mut self, _req: &Request, _ino: u64, _fh: u64, _lock_owner: u64, _start: u64, _end: u64, _typ: u32, _pid: u32, reply: ReplyLock) {
         // TODO implement
@@ -320,7 +322,7 @@ impl Filesystem for DecoFS {
         reply.fuse_error(EPERM)
     }
     /// For this deco filesystem, we do not support writing to files.
-    fn write(&mut self, _req: &Request, ino: u64, fh: u64, offset: i64, data: &[u8], _flags: u32, reply: ReplyWrite) {
+    fn write(&mut self, _req: &Request, ino: u64, _fh: u64, offset: i64, data: &[u8], _flags: u32, reply: ReplyWrite) {
         info!("write {} {} {}", ino, offset, data.len());
         reply.fuse_error(EPERM)
     }
