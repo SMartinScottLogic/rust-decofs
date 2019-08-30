@@ -49,9 +49,9 @@ add_fuse_error!(ReplyData);
 add_fuse_error!(ReplyStatfs);
 add_fuse_error!(ReplyCreate);
 add_fuse_error!(ReplyXattr);
+add_fuse_error!(ReplyDirectory);
 
 struct DecoFS {
-    sourceroot: PathBuf,
     inodes: HashMap<u64, String>
 }
 
@@ -59,7 +59,7 @@ impl DecoFS {
     fn new(sourceroot: &OsStr) -> DecoFS {
         let mut inodes = HashMap::new();
         inodes.insert(1, sourceroot.to_str().unwrap().to_string());
-      DecoFS { sourceroot: PathBuf::from(sourceroot), inodes }
+        DecoFS { inodes }
     }
     fn stat(&self, path: &PathBuf) -> io::Result<FileAttr> {
       info!("stat {:?}", path);
@@ -208,12 +208,12 @@ impl Filesystem for DecoFS {
     }
     fn readdir(&mut self, _req: &Request, ino: u64, _fh: u64, offset: i64, mut reply: ReplyDirectory) {
         info!("readdir {} {}", ino, offset);
-        if ino != 1 {
-            reply.error(ENOENT);
-            return;
-        }
+        let root = match self.ino_to_path(ino) {
+            Ok(path) => path,
+            Err(e) => {reply.fuse_error(e);return;}
+        };
         let mut entries = vec![ (1, FileType::Directory, String::from(".")), (1, FileType::Directory, String::from("..")) ];
-        for entry in fs::read_dir(&self.sourceroot).unwrap() {
+        for entry in fs::read_dir(&root).unwrap() {
             let entry = entry.unwrap();
             let path = entry.path();
             let attr = fs::metadata(&path).unwrap();
@@ -224,7 +224,7 @@ impl Filesystem for DecoFS {
             };
 
             entries.push((attr.st_ino(), file_type, file_name.clone()));
-            self.inodes.insert(attr.st_ino(), self.sourceroot.join(file_name).to_str().unwrap().to_string());
+            self.inodes.insert(attr.st_ino(), root.join(file_name).to_str().unwrap().to_string());
         }
         info!("entries: {:?}", entries);
 

@@ -138,3 +138,14 @@ fn can_deletethru() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+#[test]
+fn cannot_rename() -> Result<(), Box<dyn std::error::Error>> {
+    let mounter = MOUNTER.lock()?;
+    fs::write(mounter.source().join("rename"), "rename")?;
+    match fs::rename(mounter.target().join("rename"), mounter.target().join("renamed")) {
+        Err(ref e) if e.raw_os_error() == Some(EPERM) => assert!(true),
+        _ => assert!(false)
+    };
+    Ok(())
+}
+
