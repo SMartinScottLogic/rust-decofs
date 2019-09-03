@@ -361,3 +361,45 @@ fn main() {
         .collect::<Vec<&OsStr>>();
     fuse::mount(fs, &mountpoint, &options).unwrap();
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ino_to_path_root() {
+        let fs = DecoFS::new(OsStr::new("t"));
+        match fs.ino_to_path(1) {
+            Ok(path) => assert_eq!(path, PathBuf::from("t")),
+            _ => assert!(false)
+        };
+    }
+
+    #[test]
+    fn apply_to_ino_root() {
+        struct TestReply { };
+        impl FuseError for TestReply {
+            fn fuse_error(self, _code: c_int) {
+                assert!(false);
+            }
+        }
+
+        let reply: TestReply = TestReply {};
+        let fs = DecoFS::new(OsStr::new("t"));
+        fs.apply_to_ino(1, reply, |_path, _reply| assert!(true));
+    }
+
+    #[test]
+    fn apply_to_ino_missing() {
+        struct TestReply { };
+        impl FuseError for TestReply {
+            fn fuse_error(self, code: c_int) {
+                assert_eq!(code, ENOENT);
+            }
+        }
+
+        let reply: TestReply = TestReply {};
+        let fs = DecoFS::new(OsStr::new("t"));
+        fs.apply_to_ino(2, reply, |_path, _reply| assert!(false));
+    }
+}
