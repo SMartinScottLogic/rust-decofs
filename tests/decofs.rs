@@ -30,6 +30,7 @@ impl FuseMounter {
     fn empty_source(&self) -> Result<(), Box<dyn std::error::Error>> {
         for entry in fs::read_dir(&self.source())? {
             let path = entry?.path();
+            println!("empty_source {:?}", path);
             match fs::metadata(&path)?.is_dir() {
                 true => fs::remove_dir_all(path)?,
                 false => fs::remove_file(path)?
@@ -93,6 +94,7 @@ impl MutexMounterGuard<'_> {
 
 impl Drop for MutexMounterGuard<'_> {
     fn drop(&mut self) {
+        println!("drop MutexMounterGuard");
         match self.inner_guard.empty_source() {
             Err(e) => println!("Failure emptying source: {:?}", e),
             _ => ()
@@ -179,8 +181,8 @@ fn can_rmdir() -> Result<(), Box<dyn std::error::Error>> {
     let mounter = MOUNTER.lock()?;
     fs::create_dir(mounter.source().join("rmdir"))?;
     match fs::remove_dir(mounter.target().join("rmdir")) {
-        Err(ref e) if e.raw_os_error() == Some(EPERM) => assert!(true),
-        _ => assert!(false)
+        Ok(_) => assert!(true),
+        Err(e) => {println!("error: {:?}", e);assert!(false);},
     };
     Ok(())
 }
