@@ -27,6 +27,17 @@ impl FuseMounter {
         PathBuf::from("t")
     }
 
+    fn empty_source(&self) -> Result<(), Box<dyn std::error::Error>> {
+        for entry in fs::read_dir(&self.source())? {
+            let path = entry?.path();
+            match fs::metadata(&path)?.is_dir() {
+                true => fs::remove_dir_all(path)?,
+                false => fs::remove_file(path)?
+            };
+        };
+        Ok(())
+    }
+
     fn mount(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         let mut cmd = Command::main_binary()?;
         cmd.arg(self.target()).arg(self.source());
@@ -82,6 +93,10 @@ impl MutexMounterGuard<'_> {
 
 impl Drop for MutexMounterGuard<'_> {
     fn drop(&mut self) {
+        match self.inner_guard.empty_source() {
+            Err(e) => println!("Failure emptying source: {:?}", e),
+            _ => ()
+        };
         self.inner_guard.umount().unwrap();
     }
 }
@@ -149,3 +164,23 @@ fn cannot_rename() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+#[test]
+fn cannot_mkdir() -> Result<(), Box<dyn std::error::Error>> {
+    let mounter = MOUNTER.lock()?;
+    match fs::create_dir(mounter.target().join("mkdir")) {
+        Err(ref e) if e.raw_os_error() == Some(EPERM) => assert!(true),
+        _ => assert!(false)
+    };
+    Ok(())
+}
+
+#[test]
+fn can_rmdir() -> Result<(), Box<dyn std::error::Error>> {
+    let mounter = MOUNTER.lock()?;
+    fs::create_dir(mounter.source().join("rmdir"))?;
+    match fs::remove_dir(mounter.target().join("rmdir")) {
+        Err(ref e) if e.raw_os_error() == Some(EPERM) => assert!(true),
+        _ => assert!(false)
+    };
+    Ok(())
+}
