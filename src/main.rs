@@ -376,6 +376,15 @@ mod tests {
     }
 
     #[test]
+    fn ino_to_path_missing() {
+        let fs = DecoFS::new(OsStr::new("t"));
+        match fs.ino_to_path(2) {
+            Ok(_path) => assert!(false),
+            _ => assert!(true)
+        };
+    }
+
+    #[test]
     fn apply_to_ino_root() {
         struct TestReply { };
         impl FuseError for TestReply {
